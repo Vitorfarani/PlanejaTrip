@@ -20,6 +20,7 @@ Uma aplicação completa de planejamento de viagens colaborativo, desenvolvida c
 - **Build Tool**: Vite
 - **Backend**: Supabase (PostgreSQL + Auth + Storage)
 - **IA**: Google Gemini API
+- **Email**: EmailJS (envio de convites)
 - **Estilização**: TailwindCSS (via classes utilitárias)
 
 ## Pré-requisitos
@@ -30,6 +31,7 @@ Antes de começar, certifique-se de ter instalado:
 - **npm** ou **yarn**
 - Conta no [Supabase](https://supabase.com)
 - API Key do [Google AI Studio](https://ai.google.dev/)
+- Conta no [EmailJS](https://www.emailjs.com/) (gratuita - 200 emails/mês)
 
 ## Configuração do Projeto
 
@@ -179,7 +181,18 @@ No painel do Supabase:
    - **Site URL**: `http://localhost:5173`
    - **Redirect URLs**: `http://localhost:5173/**`
 
-### 4. Configure as variáveis de ambiente
+### 4. Configure o EmailJS (para envio de emails de convite)
+
+Siga o guia completo em: [`docs/SETUP_EMAIL.md`](docs/SETUP_EMAIL.md)
+
+**Resumo rápido:**
+
+1. Crie conta gratuita em [emailjs.com](https://www.emailjs.com/)
+2. Configure um serviço de email (Gmail recomendado)
+3. Crie um template de email com as variáveis fornecidas
+4. Copie Service ID, Template ID e Public Key
+
+### 5. Configure as variáveis de ambiente
 
 Crie um arquivo `.env.local` na raiz do projeto:
 
@@ -190,6 +203,11 @@ VITE_SUPABASE_ANON_KEY=sua_anon_key_do_supabase
 
 # Google Gemini API
 GEMINI_API_KEY=sua_api_key_do_gemini
+
+# EmailJS (para envio de convites)
+VITE_EMAILJS_SERVICE_ID=seu_service_id
+VITE_EMAILJS_TEMPLATE_ID=seu_template_id
+VITE_EMAILJS_PUBLIC_KEY=sua_public_key
 ```
 
 **Como obter as credenciais:**
@@ -198,8 +216,9 @@ GEMINI_API_KEY=sua_api_key_do_gemini
   - `VITE_SUPABASE_URL`: Project URL
   - `VITE_SUPABASE_ANON_KEY`: anon/public key
 - **Gemini API**: Acesse [Google AI Studio](https://ai.google.dev/) e gere uma API Key
+- **EmailJS**: Siga o guia em [`docs/SETUP_EMAIL.md`](docs/SETUP_EMAIL.md)
 
-### 5. Execute o projeto
+### 6. Execute o projeto
 
 ```bash
 npm run dev
@@ -239,7 +258,12 @@ PlanejaTrip/
 │   ├── authService.ts      # Autenticação
 │   ├── tripService.ts      # Gestão de viagens
 │   ├── inviteService.ts    # Sistema de convites
+│   ├── emailService.ts     # Envio de emails (EmailJS)
 │   └── profileService.ts   # Perfis de usuário
+├── docs/               # Documentação
+│   ├── SETUP_EMAIL.md      # Guia de configuração EmailJS
+│   ├── database_schema.md  # Schema do banco
+│   └── ...
 ├── src/
 │   └── lib/
 │       └── supabaseClient.ts  # Cliente Supabase
@@ -265,9 +289,11 @@ PlanejaTrip/
 
 ### Colaboração
 - Convidar participantes por email
+- **Envio automático de emails** com detalhes do convite
 - Permissões de edição ou visualização
 - Aceitar/recusar convites
 - Notificações de convites rejeitados
+- Reenvio de convites
 
 ### IA (Google Gemini)
 - Sugestões inteligentes de roteiros
@@ -291,6 +317,13 @@ PlanejaTrip/
 ### Build não funciona
 - Limpe o cache: `rm -rf node_modules package-lock.json`
 - Reinstale: `npm install`
+
+### Emails de convite não chegam
+- Verifique se as variáveis EmailJS estão configuradas no `.env.local`
+- Verifique a pasta de SPAM do destinatário
+- Confira o console do navegador para erros
+- Siga o guia completo em [`docs/SETUP_EMAIL.md`](docs/SETUP_EMAIL.md)
+- Limite gratuito: 200 emails/mês no EmailJS
 
 ## Contribuindo
 

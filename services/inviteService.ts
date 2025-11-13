@@ -1,5 +1,6 @@
 import { supabase } from '../src/lib/supabaseClient';
 import { Invite } from '../types';
+import { sendInviteEmail } from './emailService';
 
 /**
  * Busca todos os convites pendentes de um usuário (pelo email)
@@ -21,8 +22,8 @@ export const getUserInvites = async (userEmail: string): Promise<Invite[]> => {
     return (data || []).map(invite => ({
       id: invite.id,
       tripId: invite.trip_id,
-      tripName: invite.tripName || '',
-      hostName: invite.hostName || '',
+      tripName: invite.tripname || '',
+      hostName: invite.hostname || '',
       hostEmail: invite.host_email,
       guestEmail: invite.guest_email,
       permission: invite.permission as 'EDIT' | 'VIEW_ONLY',
@@ -52,9 +53,9 @@ export const createInvite = async (
       .select('*')
       .eq('trip_id', tripId)
       .eq('guest_email', guestEmail)
-      .single();
+      .maybeSingle();
 
-    if (existing && !existingError) {
+    if (existing) {
       console.log('Convite já existe para este usuário');
       return null;
     }
@@ -64,8 +65,8 @@ export const createInvite = async (
       .from('invites')
       .insert({
         trip_id: tripId,
-        tripName: tripName,
-        hostName: hostName,
+        tripname: tripName,
+        hostname: hostName,
         host_email: hostEmail,
         guest_email: guestEmail,
         permission: permission,
@@ -79,11 +80,14 @@ export const createInvite = async (
       throw error;
     }
 
+    // 🎯 ENVIAR EMAIL para o convidado
+    await sendInviteEmail(guestEmail, tripName, hostName, permission);
+
     return {
       id: data.id,
       tripId: data.trip_id,
-      tripName: data.tripName || '',
-      hostName: data.hostName || '',
+      tripName: data.tripname || '',
+      hostName: data.hostname || '',
       hostEmail: data.host_email,
       guestEmail: data.guest_email,
       permission: data.permission as 'EDIT' | 'VIEW_ONLY',
@@ -171,6 +175,19 @@ export const declineInvite = async (inviteId: string): Promise<boolean> => {
  */
 export const resendInvite = async (inviteId: string): Promise<boolean> => {
   try {
+    // Buscar dados do convite para enviar email
+    const { data: invite, error: inviteError } = await supabase
+      .from('invites')
+      .select('*')
+      .eq('id', inviteId)
+      .single();
+
+    if (inviteError || !invite) {
+      console.error('Erro ao buscar convite:', inviteError);
+      return false;
+    }
+
+    // Atualizar status para PENDING
     const { error } = await supabase
       .from('invites')
       .update({ status: 'PENDING' })
@@ -180,6 +197,14 @@ export const resendInvite = async (inviteId: string): Promise<boolean> => {
       console.error('Erro ao reenviar convite:', error);
       throw error;
     }
+
+    // 🎯 REENVIAR EMAIL para o convidado
+    await sendInviteEmail(
+      invite.guest_email,
+      invite.tripname || '',
+      invite.hostname || '',
+      invite.permission as 'EDIT' | 'VIEW_ONLY'
+    );
 
     return true;
   } catch (error) {
@@ -228,8 +253,8 @@ export const getSentInvites = async (hostEmail: string): Promise<Invite[]> => {
     return (data || []).map(invite => ({
       id: invite.id,
       tripId: invite.trip_id,
-      tripName: invite.tripName || '',
-      hostName: invite.hostName || '',
+      tripName: invite.tripname || '',
+      hostName: invite.hostname || '',
       hostEmail: invite.host_email,
       guestEmail: invite.guest_email,
       permission: invite.permission as 'EDIT' | 'VIEW_ONLY',
