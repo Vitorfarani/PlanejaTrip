@@ -130,9 +130,9 @@ const SuggestionsPage: React.FC<SuggestionsPageProps> = ({ trip }) => {
 interface TripDashboardProps {
   trip: Trip;
   user: User;
-  updateTrip: (updatedTrip: Trip) => void;
-  onBackToProfile: () => void;
-  onInvite: (trip: Trip, email: string, permission: 'EDIT' | 'VIEW_ONLY') => string | null;
+  updateTrip: (updatedTrip: Trip) => Promise<void>;
+  onBackToProfile: () => Promise<void>;
+  onInvite: (trip: Trip, email: string, permission: 'EDIT' | 'VIEW_ONLY') => Promise<string | null>;
 }
 
 export interface ChatMessage {
@@ -152,7 +152,8 @@ const TripDashboard: React.FC<TripDashboardProps> = ({ trip, user, updateTrip, o
   const [chat, setChat] = useState<Chat | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isAiThinking, setIsAiThinking] = useState(false);
-  
+  const [isUpdating, setIsUpdating] = useState(false);
+
   const currentUserPermission = trip.participants.find(p => p.email === user.email)?.permission || 'VIEW_ONLY';
   const canEdit = currentUserPermission === 'EDIT' && !trip.isCompleted;
 
@@ -221,61 +222,95 @@ const TripDashboard: React.FC<TripDashboardProps> = ({ trip, user, updateTrip, o
   };
 
 
-  const handleSaveActivity = (dayIndex: number, activityData: Omit<Activity, 'isConfirmed' | 'realCost'>) => {
-    const updatedTrip = { ...trip };
-    const day = updatedTrip.days[dayIndex];
-    
-    const activityId = activityData.id || Date.now().toString();
-    const existingActivityIndex = day.activities.findIndex(a => a.id === activityId);
-    
-    if (existingActivityIndex > -1) {
+  const handleSaveActivity = async (dayIndex: number, activityData: Omit<Activity, 'isConfirmed' | 'realCost'>) => {
+    setIsUpdating(true);
+    try {
+      const updatedTrip = { ...trip };
+      const day = updatedTrip.days[dayIndex];
+
+      const activityId = activityData.id || Date.now().toString();
+      const existingActivityIndex = day.activities.findIndex(a => a.id === activityId);
+
+      if (existingActivityIndex > -1) {
         const originalActivity = day.activities[existingActivityIndex];
         day.activities[existingActivityIndex] = {
-            ...originalActivity,
-            ...activityData,
-            id: activityId,
+          ...originalActivity,
+          ...activityData,
+          id: activityId,
         };
-    } else {
+      } else {
         day.activities.push({
-            ...activityData,
-            id: activityId,
-            isConfirmed: false,
+          ...activityData,
+          id: activityId,
+          isConfirmed: false,
         });
-    }
-    updateTrip(updatedTrip);
-    setEditingState(null);
-  };
-
-  const handleUpdateActivity = (dayIndex: number, activity: Activity) => {
-    const updatedTrip = { ...trip };
-    updatedTrip.days[dayIndex].activities.push(activity);
-    updateTrip(updatedTrip);
-  };
-
-
-  const handleDeleteActivity = (dayIndex: number, activityId: string) => {
-    const updatedTrip = { ...trip };
-    updatedTrip.days[dayIndex].activities = updatedTrip.days[dayIndex].activities.filter(a => a.id !== activityId);
-    updateTrip(updatedTrip);
-  };
-  
-  const handleConfirmActivity = (activityId: string, realCost: number, confirmedParticipants: string[]) => {
-    const updatedTrip = { ...trip };
-    for (const day of updatedTrip.days) {
-      const activityIndex = day.activities.findIndex(a => a.id === activityId);
-      if (activityIndex > -1) {
-        day.activities[activityIndex].isConfirmed = true;
-        day.activities[activityIndex].realCost = realCost;
-        day.activities[activityIndex].participants = confirmedParticipants;
-        updateTrip(updatedTrip);
-        break;
       }
+      await updateTrip(updatedTrip);
+      setEditingState(null);
+    } catch (error) {
+      console.error('Erro ao salvar atividade:', error);
+    } finally {
+      setIsUpdating(false);
     }
-    setActivityToConfirm(null);
   };
-  
-  const handleUpdateBudget = (newBudget: number) => {
-    updateTrip({ ...trip, budget: newBudget });
+
+  const handleUpdateActivity = async (dayIndex: number, activity: Activity) => {
+    setIsUpdating(true);
+    try {
+      const updatedTrip = { ...trip };
+      updatedTrip.days[dayIndex].activities.push(activity);
+      await updateTrip(updatedTrip);
+    } catch (error) {
+      console.error('Erro ao atualizar atividade:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDeleteActivity = async (dayIndex: number, activityId: string) => {
+    setIsUpdating(true);
+    try {
+      const updatedTrip = { ...trip };
+      updatedTrip.days[dayIndex].activities = updatedTrip.days[dayIndex].activities.filter(a => a.id !== activityId);
+      await updateTrip(updatedTrip);
+    } catch (error) {
+      console.error('Erro ao deletar atividade:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleConfirmActivity = async (activityId: string, realCost: number, confirmedParticipants: string[]) => {
+    setIsUpdating(true);
+    try {
+      const updatedTrip = { ...trip };
+      for (const day of updatedTrip.days) {
+        const activityIndex = day.activities.findIndex(a => a.id === activityId);
+        if (activityIndex > -1) {
+          day.activities[activityIndex].isConfirmed = true;
+          day.activities[activityIndex].realCost = realCost;
+          day.activities[activityIndex].participants = confirmedParticipants;
+          await updateTrip(updatedTrip);
+          break;
+        }
+      }
+      setActivityToConfirm(null);
+    } catch (error) {
+      console.error('Erro ao confirmar atividade:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleUpdateBudget = async (newBudget: number) => {
+    setIsUpdating(true);
+    try {
+      await updateTrip({ ...trip, budget: newBudget });
+    } catch (error) {
+      console.error('Erro ao atualizar orçamento:', error);
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const startDate = new Date(trip.startDate).toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: 'short' });

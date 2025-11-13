@@ -5,7 +5,7 @@ import PieChart from './PieChart';
 
 interface FinancialViewProps {
   trip: Trip;
-  onUpdateBudget: (newBudget: number) => void;
+  onUpdateBudget: (newBudget: number) => Promise<void>;
   canEdit: boolean;
 }
 
@@ -26,6 +26,7 @@ const FinancialView: React.FC<FinancialViewProps> = ({ trip, onUpdateBudget, can
   const [newBudget, setNewBudget] = useState(trip.budget.toString());
   const [splitViewMode, setSplitViewMode] = useState<'individual' | 'equal'>('individual');
   const [sortOrder, setSortOrder] = useState<SortOrder>('default');
+  const [isUpdating, setIsUpdating] = useState(false);
   
   const currencySymbol = currencySymbols[trip.currency];
 
@@ -97,12 +98,19 @@ const FinancialView: React.FC<FinancialViewProps> = ({ trip, onUpdateBudget, can
     return [...confirmedActivities].sort(sortFn);
   }, [confirmedActivities, selectedTraveler]);
 
-  const handleBudgetSave = () => {
+  const handleBudgetSave = async () => {
     const budgetValue = parseFloat(newBudget);
     if(!isNaN(budgetValue)) {
-        onUpdateBudget(budgetValue);
+      setIsUpdating(true);
+      try {
+        await onUpdateBudget(budgetValue);
+        setIsEditingBudget(false);
+      } catch (error) {
+        console.error('Erro ao atualizar orçamento:', error);
+      } finally {
+        setIsUpdating(false);
+      }
     }
-    setIsEditingBudget(false);
   }
 
   const durationInDays = trip.days.length || 1;
@@ -117,9 +125,27 @@ const FinancialView: React.FC<FinancialViewProps> = ({ trip, onUpdateBudget, can
                 <h3 className="text-2xl font-bold">Resumo Financeiro</h3>
                 {isEditingBudget ? (
                      <div className="flex items-center gap-2">
-                        <input type="number" value={newBudget} onChange={e => setNewBudget(e.target.value)} className="w-32 p-2 bg-gray-800 border-gray-600 rounded-lg"/>
-                        <button onClick={handleBudgetSave} className="px-4 py-2 text-sm bg-brand-primary rounded-lg">Salvar</button>
-                        <button onClick={() => setIsEditingBudget(false)} className="px-2 py-2 text-sm bg-gray-600 rounded-lg leading-none">X</button>
+                        <input
+                          type="number"
+                          value={newBudget}
+                          onChange={e => setNewBudget(e.target.value)}
+                          disabled={isUpdating}
+                          className="w-32 p-2 bg-gray-800 border-gray-600 rounded-lg disabled:opacity-50"
+                        />
+                        <button
+                          onClick={handleBudgetSave}
+                          disabled={isUpdating}
+                          className="px-4 py-2 text-sm bg-brand-primary rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isUpdating ? 'Salvando...' : 'Salvar'}
+                        </button>
+                        <button
+                          onClick={() => setIsEditingBudget(false)}
+                          disabled={isUpdating}
+                          className="px-2 py-2 text-sm bg-gray-600 rounded-lg leading-none disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          X
+                        </button>
                      </div>
                 ) : (
                     canEdit && <button onClick={() => setIsEditingBudget(true)} className="px-4 py-2 text-sm border border-gray-600 rounded-lg hover:bg-gray-700 transition">Editar Orçamento</button>

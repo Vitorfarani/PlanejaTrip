@@ -5,7 +5,7 @@ import TripConfirmationModal from './TripConfirmationModal';
 
 interface TripFormProps {
   user: User;
-  onSave: (trip: Trip) => void;
+  onSave: (trip: Trip) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -28,6 +28,7 @@ const TripForm: React.FC<TripFormProps> = ({ user, onSave, onCancel }) => {
   });
   const [tripToConfirm, setTripToConfirm] = useState<Trip | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -90,9 +91,18 @@ const TripForm: React.FC<TripFormProps> = ({ user, onSave, onCancel }) => {
     setTripToConfirm(newTrip);
   };
 
-  const handleConfirmCreation = () => {
-    if (tripToConfirm) {
-        onSave(tripToConfirm);
+  const handleConfirmCreation = async () => {
+    if (tripToConfirm && !isSaving) {
+      setIsSaving(true);
+      try {
+        await onSave(tripToConfirm);
+        // Componente será desmontado após sucesso (navegação para dashboard)
+      } catch (error) {
+        console.error('Erro ao criar viagem:', error);
+        setError('Erro ao criar viagem. Tente novamente.');
+        setIsSaving(false);
+        setTripToConfirm(null);
+      }
     }
   };
   
@@ -147,10 +157,11 @@ const TripForm: React.FC<TripFormProps> = ({ user, onSave, onCancel }) => {
         </form>
       </div>
       {tripToConfirm && (
-        <TripConfirmationModal 
-            trip={tripToConfirm} 
+        <TripConfirmationModal
+            trip={tripToConfirm}
             onConfirm={handleConfirmCreation}
             onCancel={handleCancelCreation}
+            isSaving={isSaving}
         />
       )}
     </>

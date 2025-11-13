@@ -3,8 +3,8 @@ import Logo from './Logo';
 import PasswordInput from './PasswordInput';
 
 interface LoginScreenProps {
-  onLogin: (email: string, password: string) => string | null;
-  onRegister: (name: string, email: string, password: string) => string | null;
+  onLogin: (email: string, password: string) => Promise<string | null>;
+  onRegister: (name: string, email: string, password: string) => Promise<string | null>;
   onForgotPassword: () => void;
 }
 
@@ -15,29 +15,38 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onRegister, onForgot
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
 
-    if (mode === 'login') {
-      if (email && password) {
-        const result = onLogin(email, password);
-        if (result) setError(result);
-      } else {
-        setError('Por favor, preencha e-mail e senha.');
-      }
-    } else { // register mode
-      if (name && email && password && confirmPassword) {
-        if (password !== confirmPassword) {
-          setError('As senhas não coincidem.');
-          return;
+    try {
+      if (mode === 'login') {
+        if (email && password) {
+          const result = await onLogin(email, password);
+          if (result) setError(result);
+        } else {
+          setError('Por favor, preencha e-mail e senha.');
         }
-        const result = onRegister(name, email, password);
-        if (result) setError(result);
-      } else {
-        setError('Por favor, preencha todos os campos.');
+      } else { // register mode
+        if (name && email && password && confirmPassword) {
+          if (password !== confirmPassword) {
+            setError('As senhas não coincidem.');
+            return;
+          }
+          const result = await onRegister(name, email, password);
+          if (result) setError(result);
+        } else {
+          setError('Por favor, preencha todos os campos.');
+        }
       }
+    } catch (error) {
+      console.error('Erro ao processar:', error);
+      setError('Erro ao processar solicitação. Tente novamente.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -128,9 +137,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onRegister, onForgot
             <div>
               <button
                 type="submit"
-                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-lg text-white bg-brand-primary hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-brand-dark focus:ring-brand-primary transition-colors"
+                disabled={isLoading}
+                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-lg text-white bg-brand-primary hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-brand-dark focus:ring-brand-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {mode === 'login' ? 'Entrar' : 'Cadastrar'}
+                {isLoading ? 'Processando...' : (mode === 'login' ? 'Entrar' : 'Cadastrar')}
               </button>
             </div>
           </form>

@@ -9,10 +9,10 @@ import PasswordInput from './PasswordInput';
 interface InvitesViewProps {
   pendingInvites: Invite[];
   rejectedNotifications: Invite[];
-  onAccept: (invite: Invite) => void;
-  onDecline: (invite: Invite) => void;
-  onResend: (inviteId: string) => void;
-  onDismiss: (inviteId: string) => void;
+  onAccept: (invite: Invite) => Promise<void>;
+  onDecline: (invite: Invite) => Promise<void>;
+  onResend: (inviteId: string) => Promise<void>;
+  onDismiss: (inviteId: string) => Promise<void>;
 }
 
 const InvitesView: React.FC<InvitesViewProps> = ({ pendingInvites, rejectedNotifications, onAccept, onDecline, onResend, onDismiss }) => {
@@ -85,15 +85,15 @@ interface ProfileScreenProps {
   user: User;
   trips: Trip[];
   invites: Invite[];
-  onLogout: () => void;
+  onLogout: () => Promise<void>;
   onNewTrip: () => void;
   onSelectTrip: (trip: Trip) => void;
-  onUpdateUser: (updatedUser: User) => void;
-  onConcludeTrip: (tripId: string) => void;
-  onAcceptInvite: (invite: Invite) => void;
-  onDeclineInvite: (invite: Invite) => void;
-  onResendInvite: (inviteId: string) => void;
-  onDismissRejection: (inviteId: string) => void;
+  onUpdateUser: (updatedUser: User) => Promise<void>;
+  onConcludeTrip: (tripId: string) => Promise<void>;
+  onAcceptInvite: (invite: Invite) => Promise<void>;
+  onDeclineInvite: (invite: Invite) => Promise<void>;
+  onResendInvite: (inviteId: string) => Promise<void>;
+  onDismissRejection: (inviteId: string) => Promise<void>;
 }
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, trips, invites, onLogout, onNewTrip, onSelectTrip, onUpdateUser, onConcludeTrip, onAcceptInvite, onDeclineInvite, onResendInvite, onDismissRejection }) => {
@@ -104,39 +104,59 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, trips, invites, onL
   const [tripToConclude, setTripToConclude] = useState<Trip | null>(null);
   const [isInvitesOpen, setIsInvitesOpen] = useState(false);
   const [editError, setEditError] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const activeTrips = trips.filter(t => !t.isCompleted);
   const completedTrips = trips.filter(t => t.isCompleted);
-  
+
   const pendingInvites = invites.filter(inv => inv.status === 'PENDING');
   const rejectedNotifications = invites.filter(inv => inv.status === 'REJECTED');
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setEditError('');
-    // Senha
-    if (passwordData.newPassword) {
-        if (passwordData.currentPassword !== user.password) {
-            setEditError('A senha atual está incorreta.');
-            return;
-        }
+    setIsUpdating(true);
+
+    try {
+      // Validação de senha (se fornecida)
+      if (passwordData.newPassword) {
         if (passwordData.newPassword !== passwordData.confirmPassword) {
-            setEditError('As novas senhas não coincidem.');
-            return;
+          setEditError('As novas senhas não coincidem.');
+          return;
         }
-        onUpdateUser({ ...user, ...userData, password: passwordData.newPassword });
-    } else { // Apenas nome/email
-        onUpdateUser({ ...user, ...userData });
-    }
-    
-    setIsEditing(false);
-    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: ''});
-  };
-  
-  const handleConfirmConclusion = () => {
-      if(tripToConclude) {
-          onConcludeTrip(tripToConclude.id);
-          setTripToConclude(null);
+        if (passwordData.newPassword.length < 4) {
+          setEditError('A senha deve ter pelo menos 4 caracteres.');
+          return;
+        }
+        // Atualizar perfil e senha
+        await onUpdateUser({ ...user, ...userData });
+        // Nota: A senha é atualizada via authService no App.tsx
+      } else {
+        // Apenas atualizar nome/email
+        await onUpdateUser({ ...user, ...userData });
       }
+
+      setIsEditing(false);
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: ''});
+    } catch (error) {
+      console.error('Erro ao atualizar perfil:', error);
+      setEditError('Erro ao atualizar perfil. Tente novamente.');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleConfirmConclusion = async () => {
+    if(tripToConclude) {
+      setIsUpdating(true);
+      try {
+        await onConcludeTrip(tripToConclude.id);
+        setTripToConclude(null);
+      } catch (error) {
+        console.error('Erro ao concluir viagem:', error);
+      } finally {
+        setIsUpdating(false);
+      }
+    }
   }
 
   return (
@@ -190,8 +210,20 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, trips, invites, onL
                 </button>
               {isEditing ? (
                  <div className="flex space-x-2">
-                    <button onClick={() => { setIsEditing(false); setEditError(''); }} className="px-4 py-2 rounded-lg bg-gray-600 hover:bg-gray-700 transition">Cancelar</button>
-                    <button onClick={handleSave} className="px-4 py-2 rounded-lg bg-brand-primary hover:bg-opacity-90 transition">Salvar</button>
+                    <button
+                      onClick={() => { setIsEditing(false); setEditError(''); }}
+                      disabled={isUpdating}
+                      className="px-4 py-2 rounded-lg bg-gray-600 hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      disabled={isUpdating}
+                      className="px-4 py-2 rounded-lg bg-brand-primary hover:bg-opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isUpdating ? 'Salvando...' : 'Salvar'}
+                    </button>
                  </div>
               ) : (
                 <button onClick={() => setIsEditing(true)} className="px-4 py-2 rounded-lg bg-brand-light border border-gray-600 hover:bg-gray-700 transition">

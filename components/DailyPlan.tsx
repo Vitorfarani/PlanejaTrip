@@ -12,7 +12,7 @@ interface DailyPlanProps {
   onEditActivity: (activity: Activity) => void;
   deleteActivity: (dayIndex: number, activityId: string) => void;
   onConfirmClick: (activity: Activity) => void;
-  updateActivity: (dayIndex: number, activity: Activity) => void;
+  updateActivity: (dayIndex: number, activity: Activity) => Promise<void>;
   onBack: () => void;
 }
 
@@ -34,15 +34,17 @@ const DailyPlan: React.FC<DailyPlanProps> = ({ day, trip, canEdit, onAddActivity
       try {
           const allActivities = trip.days.flatMap(d => d.activities);
           const suggestions = await getActivitySuggestions(trip.destination, trip.preferences, allActivities);
-          suggestions.forEach(suggestion => {
+
+          // Adicionar atividades uma por uma de forma assíncrona
+          for (const suggestion of suggestions) {
               const activity: Activity = {
                   ...suggestion,
                   id: Date.now().toString() + Math.random(),
                   isConfirmed: false,
                   participants: []
               };
-              updateActivity(day.dayNumber - 1, activity);
-          });
+              await updateActivity(day.dayNumber - 1, activity);
+          }
       } catch (error) {
           console.error("Failed to get suggestions", error);
       } finally {

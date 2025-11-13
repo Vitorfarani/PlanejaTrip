@@ -6,9 +6,10 @@ interface TripConfirmationModalProps {
   trip: Trip;
   onConfirm: () => void;
   onCancel: () => void;
+  isSaving?: boolean;
 }
 
-const TripConfirmationModal: React.FC<TripConfirmationModalProps> = ({ trip, onConfirm, onCancel }) => {
+const TripConfirmationModal: React.FC<TripConfirmationModalProps> = ({ trip, onConfirm, onCancel, isSaving = false }) => {
   const startDate = new Date(trip.startDate).toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: 'long', year: 'numeric' });
   const endDate = new Date(trip.endDate).toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: 'long', year: 'numeric' });
   const duration = trip.days.length;
@@ -39,8 +40,20 @@ const TripConfirmationModal: React.FC<TripConfirmationModalProps> = ({ trip, onC
         </div>
 
         <div className="flex justify-end space-x-4">
-          <button onClick={onCancel} className="px-6 py-2 rounded-lg bg-gray-600 hover:bg-gray-700 transition">Voltar e Editar</button>
-          <button onClick={onConfirm} className="px-6 py-2 rounded-lg text-white bg-brand-secondary hover:bg-opacity-90 transition font-semibold shadow-md">Confirmar e Criar Viagem</button>
+          <button
+            onClick={onCancel}
+            disabled={isSaving}
+            className="px-6 py-2 rounded-lg bg-gray-600 hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Voltar e Editar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isSaving}
+            className="px-6 py-2 rounded-lg text-white bg-brand-secondary hover:bg-opacity-90 transition font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSaving ? 'Criando...' : 'Confirmar e Criar Viagem'}
+          </button>
         </div>
       </div>
     </div>
