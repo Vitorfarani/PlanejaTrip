@@ -101,8 +101,10 @@ export const createInvite = async (
 
 /**
  * Aceita um convite
+ * Nota: O participante já foi adicionado ao trip.participants quando o convite foi criado
+ * Aqui apenas adicionamos à tabela trip_participants e removemos o convite
  */
-export const acceptInvite = async (inviteId: string, userId: string): Promise<boolean> => {
+export const acceptInvite = async (inviteId: string, userId: string, userName: string, userEmail: string): Promise<boolean> => {
   try {
     // Buscar dados do convite
     const { data: invite, error: inviteError } = await supabase
@@ -116,12 +118,14 @@ export const acceptInvite = async (inviteId: string, userId: string): Promise<bo
       return false;
     }
 
-    // Adicionar usuário como participante da viagem
+    // Adicionar usuário como participante na tabela trip_participants
     const { error: participantError } = await supabase
       .from('trip_participants')
       .insert({
         trip_id: invite.trip_id,
         user_id: userId,
+        email: userEmail,
+        name: userName,
         permission: invite.permission
       });
 
@@ -149,10 +153,51 @@ export const acceptInvite = async (inviteId: string, userId: string): Promise<bo
 };
 
 /**
- * Recusa um convite
+ * Recusa um convite e remove o participante da viagem
  */
 export const declineInvite = async (inviteId: string): Promise<boolean> => {
   try {
+    // Buscar dados do convite
+    const { data: invite, error: inviteError } = await supabase
+      .from('invites')
+      .select('*')
+      .eq('id', inviteId)
+      .single();
+
+    if (inviteError || !invite) {
+      console.error('Erro ao buscar convite:', inviteError);
+      return false;
+    }
+
+    // Buscar a viagem e remover o participante do array
+    const { data: tripData, error: tripError } = await supabase
+      .from('trips')
+      .select('*')
+      .eq('id', invite.trip_id)
+      .single();
+
+    if (tripError || !tripData) {
+      console.error('Erro ao buscar viagem:', tripError);
+    } else {
+      // Remover participante do array
+      const currentTrip = tripData.data;
+      const updatedParticipants = currentTrip.participants.filter(
+        (p: any) => p.email !== invite.guest_email
+      );
+
+      // Atualizar a viagem sem o participante
+      await supabase
+        .from('trips')
+        .update({
+          data: {
+            ...currentTrip,
+            participants: updatedParticipants
+          }
+        })
+        .eq('id', invite.trip_id);
+    }
+
+    // Atualizar status do convite para REJECTED
     const { error } = await supabase
       .from('invites')
       .update({ status: 'REJECTED' })
@@ -171,7 +216,7 @@ export const declineInvite = async (inviteId: string): Promise<boolean> => {
 };
 
 /**
- * Reenvia um convite (altera status de REJECTED para PENDING)
+ * Reenvia um convite (altera status de REJECTED para PENDING e adiciona participante de volta)
  */
 export const resendInvite = async (inviteId: string): Promise<boolean> => {
   try {
@@ -185,6 +230,51 @@ export const resendInvite = async (inviteId: string): Promise<boolean> => {
     if (inviteError || !invite) {
       console.error('Erro ao buscar convite:', inviteError);
       return false;
+    }
+
+    // Buscar perfil do convidado
+    const { data: guestProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('email', invite.guest_email)
+      .single();
+
+    if (!profileError && guestProfile) {
+      // Adicionar participante de volta à viagem
+      const { data: tripData, error: tripError } = await supabase
+        .from('trips')
+        .select('*')
+        .eq('id', invite.trip_id)
+        .single();
+
+      if (!tripError && tripData) {
+        const currentTrip = tripData.data;
+        // Verificar se já não está na lista
+        const alreadyExists = currentTrip.participants.some(
+          (p: any) => p.email === invite.guest_email
+        );
+
+        if (!alreadyExists) {
+          const updatedParticipants = [
+            ...currentTrip.participants,
+            {
+              name: guestProfile.name,
+              email: guestProfile.email,
+              permission: invite.permission
+            }
+          ];
+
+          await supabase
+            .from('trips')
+            .update({
+              data: {
+                ...currentTrip,
+                participants: updatedParticipants
+              }
+            })
+            .eq('id', invite.trip_id);
+        }
+      }
     }
 
     // Atualizar status para PENDING

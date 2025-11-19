@@ -76,6 +76,25 @@ export const createTrip = async (tripData: Trip, userId: string): Promise<Trip |
       throw error;
     }
 
+    // Adicionar o dono como participante na tabela trip_participants
+    const owner = tripData.participants.find(p => p.email === tripData.ownerEmail);
+    if (owner) {
+      const { error: participantError } = await supabase
+        .from('trip_participants')
+        .insert({
+          trip_id: data.id,
+          user_id: userId,
+          email: owner.email,
+          name: owner.name,
+          permission: owner.permission
+        });
+
+      if (participantError) {
+        console.error('Erro ao adicionar dono como participante:', participantError);
+        // Não falha a criação da viagem se não conseguir adicionar na tabela de participantes
+      }
+    }
+
     return {
       ...data.data,
       id: data.id

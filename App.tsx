@@ -162,8 +162,8 @@ const App: React.FC = () => {
     if (!appState.user) return "Usuário não logado.";
 
     // Verificar se o email existe no sistema
-    const userExists = await profileService.emailExists(guestEmail);
-    if (!userExists) return "Nenhuma conta encontrada com este e-mail.";
+    const guestProfile = await profileService.getProfileByEmail(guestEmail);
+    if (!guestProfile) return "Nenhuma conta encontrada com este e-mail.";
 
     // Verificar se o usuário já participa da viagem
     if (trip.participants.some(p => p.email === guestEmail)) {
@@ -184,6 +184,22 @@ const App: React.FC = () => {
       return "Um convite para esta viagem já foi enviado a este usuário.";
     }
 
+    // Adicionar participante imediatamente à viagem (antes mesmo de aceitar)
+    const updatedTrip = {
+      ...trip,
+      participants: [
+        ...trip.participants,
+        {
+          name: guestProfile.name,
+          email: guestProfile.email,
+          permission: permission
+        }
+      ]
+    };
+
+    // Atualizar a viagem no banco
+    await handleUpdateTrip(updatedTrip);
+
     return null; // Success
   };
 
@@ -197,8 +213,13 @@ const App: React.FC = () => {
       return;
     }
 
-    // Aceitar convite (adiciona à trip_participants e remove o convite)
-    const success = await inviteService.acceptInvite(invite.id, guestProfile.id);
+    // Aceitar convite (adiciona à trip_participants, atualiza trip.participants e remove o convite)
+    const success = await inviteService.acceptInvite(
+      invite.id,
+      guestProfile.id,
+      guestProfile.name,
+      guestProfile.email
+    );
 
     if (success) {
       // Recarregar viagens e convites
