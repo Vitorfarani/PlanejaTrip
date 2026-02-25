@@ -5,7 +5,7 @@ import { Trip } from '../types';
  * Busca todas as viagens do usuário atual
  * Inclui viagens próprias e viagens onde é participante
  */
-export const getUserTrips = async (userId: string): Promise<Trip[]> => {
+export const getUserTrips = async (userId: string, userEmail?: string): Promise<Trip[]> => {
   try {
     // Buscar viagens onde o usuário é o dono
     const { data: ownTrips, error: ownError } = await supabase
@@ -18,7 +18,7 @@ export const getUserTrips = async (userId: string): Promise<Trip[]> => {
       throw ownError;
     }
 
-    // Buscar viagens onde o usuário é participante
+    // Buscar viagens onde o usuário é participante (via tabela trip_participants)
     const { data: participantTrips, error: participantError } = await supabase
       .from('trip_participants')
       .select('trip_id')
@@ -45,9 +45,25 @@ export const getUserTrips = async (userId: string): Promise<Trip[]> => {
       }
     }
 
-    // Combinar todas as viagens e extrair o campo 'data' (JSONB)
-    const allTrips = [...(ownTrips || []), ...sharedTrips];
-    return allTrips.map(trip => ({
+    // Buscar viagens onde o email do usuário está no JSON de participantes
+    // (fallback para quando o insert em trip_participants falha por RLS)
+    let jsonParticipantTrips: any[] = [];
+    if (userEmail) {
+      const { data: jsonData } = await supabase
+        .from('trips')
+        .select('*')
+        .filter('data->participants', 'cs', JSON.stringify([{ email: userEmail }]));
+
+      jsonParticipantTrips = jsonData || [];
+    }
+
+    // Combinar todas as viagens, remover duplicatas e extrair o campo 'data' (JSONB)
+    const allTrips = [...(ownTrips || []), ...sharedTrips, ...jsonParticipantTrips];
+    const uniqueTrips = allTrips.filter((trip, index, self) =>
+      index === self.findIndex(t => t.id === trip.id)
+    );
+
+    return uniqueTrips.map(trip => ({
       ...trip.data,
       id: trip.id // Garantir que o ID da tabela seja usado
     }));

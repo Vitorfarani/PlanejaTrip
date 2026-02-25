@@ -44,7 +44,7 @@ const App: React.FC = () => {
   const loadUserData = async (user: User) => {
     try {
       // Carregar viagens do usuário
-      const trips = await tripService.getUserTrips(user.id);
+      const trips = await tripService.getUserTrips(user.id, user.email);
 
       // Carregar convites do usuário
       const invites = await inviteService.getUserInvites(user.email);
@@ -223,7 +223,7 @@ const App: React.FC = () => {
 
     if (success) {
       // Recarregar viagens e convites
-      const trips = await tripService.getUserTrips(appState.user.id);
+      const trips = await tripService.getUserTrips(appState.user.id, appState.user.email);
       const invites = await inviteService.getUserInvites(appState.user.email);
 
       setAppState(prev => ({ ...prev, trips, invites }));

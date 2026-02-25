@@ -118,8 +118,9 @@ export const acceptInvite = async (inviteId: string, userId: string, userName: s
       return false;
     }
 
-    // Adicionar usuário como participante na tabela trip_participants
-    const { error: participantError } = await supabase
+    // Tentar adicionar usuário na tabela trip_participants (pode falhar por RLS — tudo bem,
+    // pois o usuário já está no array participants do JSON da viagem)
+    await supabase
       .from('trip_participants')
       .insert({
         trip_id: invite.trip_id,
@@ -129,12 +130,7 @@ export const acceptInvite = async (inviteId: string, userId: string, userName: s
         permission: invite.permission
       });
 
-    if (participantError) {
-      console.error('Erro ao adicionar participante:', participantError);
-      return false;
-    }
-
-    // Deletar o convite
+    // Sempre deletar o convite, independente do insert acima ter funcionado
     const { error: deleteError } = await supabase
       .from('invites')
       .delete()

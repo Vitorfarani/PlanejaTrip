@@ -4,7 +4,7 @@ import DailyPlan from './DailyPlan';
 import ConfirmModal from './ConfirmModal';
 import SettingsView from './Sidebar';
 import FinancialView from './FinancialView';
-import { MapPinIcon, CalendarIcon, ArrowLeftIcon, SparklesIcon, MenuIcon, ChatBubbleLeftRightIcon, XCircleIcon, ChartPieIcon, GlobeIcon, UsersIcon, Cog6ToothIcon } from './IconComponents';
+import { MapPinIcon, CalendarIcon, ArrowLeftIcon, SparklesIcon, MenuIcon, ChatBubbleLeftRightIcon, XCircleIcon, ChartPieIcon, GlobeIcon, UsersIcon, Cog6ToothIcon, ChevronDownIcon } from './IconComponents';
 import Logo from './Logo';
 import { getTravelSuggestionsText } from '../services/geminiService';
 import ActivityFormModal from './ActivityFormModal';
@@ -147,6 +147,7 @@ const TripDashboard: React.FC<TripDashboardProps> = ({ trip, user, updateTrip, o
   const [activeTab, setActiveTab] = useState<Tab>('planning');
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
   const [editingState, setEditingState] = useState<{ dayIndex: number; activity: Activity | null } | null>(null);
+  const [expandedWeekIndex, setExpandedWeekIndex] = useState<number | null>(null);
 
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chat, setChat] = useState<Chat | null>(null);
@@ -313,6 +314,10 @@ const TripDashboard: React.FC<TripDashboardProps> = ({ trip, user, updateTrip, o
     }
   };
 
+  const weeks = Array.from({ length: Math.ceil(trip.days.length / 7) }, (_, i) =>
+    trip.days.slice(i * 7, (i + 1) * 7)
+  );
+
   const startDate = new Date(trip.startDate).toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: 'short' });
   const endDate = new Date(trip.endDate).toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: 'short' });
 
@@ -350,17 +355,51 @@ const TripDashboard: React.FC<TripDashboardProps> = ({ trip, user, updateTrip, o
           {activeTab === 'planning' && (
             <div>
               {selectedDayIndex === null ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {trip.days.map((day, index) => (
-                    <button 
-                      key={day.date}
-                      onClick={() => setSelectedDayIndex(index)}
-                      className="bg-brand-light p-6 rounded-xl shadow-lg text-left hover:bg-gray-700 hover:shadow-brand-primary/20 transform hover:-translate-y-1 transition-all duration-300"
-                    >
-                      <h3 className="text-xl font-bold text-brand-primary">Dia {day.dayNumber}</h3>
-                      <p className="text-brand-subtext">{new Date(day.date).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' })}</p>
-                    </button>
-                  ))}
+                <div className="space-y-3">
+                  {weeks.map((weekDays, weekIndex) => {
+                    const isExpanded = expandedWeekIndex === weekIndex;
+                    const firstDate = new Date(weekDays[0].date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+                    const lastDate = new Date(weekDays[weekDays.length - 1].date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+                    const totalActivities = weekDays.reduce((sum, d) => sum + d.activities.length, 0);
+                    return (
+                      <div key={weekIndex} className="bg-brand-light rounded-xl shadow-lg overflow-hidden">
+                        <button
+                          onClick={() => setExpandedWeekIndex(isExpanded ? null : weekIndex)}
+                          className="w-full flex items-center justify-between p-6 text-left hover:bg-gray-700 transition-colors duration-200"
+                        >
+                          <div>
+                            <h3 className="text-xl font-bold text-brand-primary">Semana {weekIndex + 1}</h3>
+                            <p className="text-brand-subtext text-sm">
+                              {firstDate} — {lastDate} · {weekDays.length} dia{weekDays.length > 1 ? 's' : ''} · {totalActivities} atividade{totalActivities !== 1 ? 's' : ''}
+                            </p>
+                          </div>
+                          <ChevronDownIcon className={`w-5 h-5 text-brand-subtext transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                        </button>
+                        {isExpanded && (
+                          <div className="px-6 pb-6 border-t border-gray-700">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-4">
+                              {weekDays.map((day, dayInWeek) => {
+                                const originalIndex = weekIndex * 7 + dayInWeek;
+                                return (
+                                  <button
+                                    key={day.date}
+                                    onClick={() => setSelectedDayIndex(originalIndex)}
+                                    className="bg-gray-800 p-4 rounded-lg text-left border border-gray-700 hover:border-brand-primary hover:bg-gray-700 transform hover:-translate-y-1 transition-all duration-300"
+                                  >
+                                    <h4 className="text-base font-bold text-brand-primary">Dia {day.dayNumber}</h4>
+                                    <p className="text-brand-subtext text-sm">{new Date(day.date).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' })}</p>
+                                    {day.activities.length > 0 && (
+                                      <p className="text-xs text-green-400 mt-2">{day.activities.length} atividade{day.activities.length > 1 ? 's' : ''}</p>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <DailyPlan
